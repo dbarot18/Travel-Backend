@@ -1,13 +1,14 @@
 import express, { json } from "express";
 import cors from "cors";
 import { connect } from "mongoose";
-import nodemailer from "nodemailer";
 import { config } from "dotenv";
 import Request from "./models/Request.js";
+import { Resend } from "resend";
 
 config();
 
 const app = express();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Middleware
 app.use(
@@ -36,7 +37,6 @@ app.get("/api/requests", async (req, res) => {
     const requests = await Request.find().sort({ createdAt: -1 });
     res.json(requests);
   } catch (error) {
-    console.error("Error fetching requests:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -50,7 +50,6 @@ app.get("/api/requests/:id", async (req, res) => {
     }
     res.json(request);
   } catch (error) {
-    console.error("Error fetching request:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -88,7 +87,8 @@ app.post("/api/requests", async (req, res) => {
     await newRequest.save();
 
     // Send confirmation email to client
-    await sendEmail({
+    resend.emails.send({
+      from: "info@travel-hub.com",
       to: email,
       subject: "Travel Request Received",
       html: `
@@ -113,13 +113,12 @@ app.post("/api/requests", async (req, res) => {
 
     res.status(201).json(newRequest);
   } catch (error) {
-    console.error("Error creating request:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 // UPDATE request status
-app.patch("/api/requests/:id", async (req, res) => {
+app.put("/api/requests/:id", async (req, res) => {
   try {
     const { status, notes } = req.body;
 
@@ -136,7 +135,8 @@ app.patch("/api/requests/:id", async (req, res) => {
 
     // Send status update email
     if (status) {
-      await sendEmail({
+      resend.emails.send({
+        from: "info@travel-hub.com",
         to: request.email,
         subject: `Travel Request ${
           status.charAt(0).toUpperCase() + status.slice(1)
@@ -156,7 +156,6 @@ app.patch("/api/requests/:id", async (req, res) => {
 
     res.json(request);
   } catch (error) {
-    console.error("Error updating request:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -170,7 +169,6 @@ app.delete("/api/requests/:id", async (req, res) => {
     }
     res.json({ message: "Request deleted successfully" });
   } catch (error) {
-    console.error("Error deleting request:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
